@@ -12,9 +12,9 @@ const SALT_ROUNDS = 10;
 class AuthService {
   /**
    * Register a new user with hashed password
-   * @param {{ name: string, email: string, password: string }}
+   * @param {{ name: string, email: string, password: string, role?: string }}
    */
-  async register({ name, email, password }) {
+  async register({ name, email, password, role = 'user' }) {
     if (!name?.trim() || !email?.trim() || !password) {
       throw new AppError('Name, email, and password are required', 400);
     }
@@ -32,6 +32,7 @@ class AuthService {
       name: name.trim(),
       email: email.toLowerCase().trim(),
       passwordHash,
+      role,
     });
 
     const token = this.generateToken(user);
@@ -67,7 +68,7 @@ class AuthService {
    */
   generateToken(user) {
     return jwt.sign(
-      { userId: user.id, email: user.email },
+      { userId: user.id, email: user.email, role: user.role },
       config.jwt.secret,
       { expiresIn: config.jwt.expiresIn }
     );
@@ -79,6 +80,7 @@ class AuthService {
       id: user.id,
       name: user.name,
       email: user.email,
+      role: user.role,
       createdAt: user.created_at,
     };
   }

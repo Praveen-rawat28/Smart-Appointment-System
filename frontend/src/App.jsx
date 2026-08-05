@@ -9,6 +9,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import SlotsPage from './pages/SlotsPage';
 import MyAppointmentsPage from './pages/MyAppointmentsPage';
+import AdminPage from './pages/AdminPage';
 import './styles/index.css';
 
 export default function App() {
@@ -34,6 +35,14 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <MyAppointmentsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin"
+                element={
+                  <ProtectedRoute requireAdmin>
+                    <AdminPage />
                   </ProtectedRoute>
                 }
               />

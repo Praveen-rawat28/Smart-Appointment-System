@@ -41,12 +41,29 @@ export async function apiRequest(endpoint, options = {}) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  let response;
+  try {
+    response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers,
+    });
+  } catch {
+    throw new Error(
+      'Cannot connect to the server. Start the backend with: cd backend && npm run dev'
+    );
+  }
 
-  const body = await response.json();
+  const text = await response.text();
+  let body = {};
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      throw new Error(
+        'Server returned an invalid response. Make sure the backend is running on port 5000.'
+      );
+    }
+  }
 
   if (!response.ok || !body.success) {
     const error = new Error(body.message || 'Request failed');

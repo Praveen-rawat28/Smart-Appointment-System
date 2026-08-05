@@ -12,11 +12,11 @@ process.env.DATABASE_PATH = path.join(__dirname, '../data/test-appointments.db')
 process.env.JWT_SECRET = 'test-secret';
 
 const { getDatabase, closeDatabase } = require('../src/database/connection');
-const authService = require('../src/services/authService');
-const appointmentService = require('../src/services/appointmentService');
-const slotRepository = require('../src/repositories/slotRepository');
 
 const testDbPath = process.env.DATABASE_PATH;
+let authService;
+let appointmentService;
+let slotRepository;
 
 function resetDatabase() {
   closeDatabase();
@@ -45,6 +45,10 @@ describe('Appointment Booking Logic', () => {
 
   before(async () => {
     resetDatabase();
+    authService = require('../src/services/authService');
+    appointmentService = require('../src/services/appointmentService');
+    slotRepository = require('../src/repositories/slotRepository');
+
     user1 = (await authService.register({
       name: 'Alice',
       email: 'alice@test.com',
@@ -62,25 +66,40 @@ describe('Appointment Booking Logic', () => {
     if (fs.existsSync(testDbPath)) fs.unlinkSync(testDbPath);
   });
 
-  it('should book an available slot successfully', () => {
+  it('should create a pending request and leave the slot available', () => {
     const slotId = insertTestSlot(futureDate(10), '10:00', '11:00');
     const appointment = appointmentService.bookAppointment(user1.id, slotId);
-    assert.equal(appointment.status, 'confirmed');
+    assert.equal(appointment.status, 'pending');
     assert.equal(appointment.user_id, user1.id);
+
+    const slot = slotRepository.findById(slotId);
+    assert.equal(slot.status, 'available');
   });
 
-  it('should reject booking the same slot twice (concurrency)', () => {
+  it('should allow multiple users to request the same slot until approval', () => {
     const slotId = insertTestSlot(futureDate(11), '10:00', '11:00');
-    appointmentService.bookAppointment(user1.id, slotId);
+    const first = appointmentService.bookAppointment(user1.id, slotId);
+    const second = appointmentService.bookAppointment(user2.id, slotId);
 
-    assert.throws(
-      () => appointmentService.bookAppointment(user2.id, slotId),
-      (err) => err.message.includes('no longer available') || err.message.includes('just booked')
-    );
+    assert.equal(first.status, 'pending');
+    assert.equal(second.status, 'pending');
+    assert.equal(slotRepository.findById(slotId).status, 'available');
+  });
+
+  it('should occupy the slot only after admin approval', () => {
+    const slotId = insertTestSlot(futureDate(12), '10:00', '11:00');
+    const first = appointmentService.bookAppointment(user1.id, slotId);
+    const second = appointmentService.bookAppointment(user2.id, slotId);
+
+    const approved = appointmentService.approveAppointment(first.id);
+
+    assert.equal(approved.status, 'confirmed');
+    assert.equal(slotRepository.findById(slotId).status, 'booked');
+    assert.equal(appointmentService.getUserAppointments(user2.id).find((appt) => appt.id === second.id).status, 'rejected');
   });
 
   it('should enforce one appointment per user per calendar day', () => {
-    const date = futureDate(12);
+    const date = futureDate(13);
     const slot1 = insertTestSlot(date, '09:00', '10:00');
     insertTestSlot(date, '11:00', '12:00');
 
@@ -107,6 +126,7 @@ describe('Appointment Booking Logic', () => {
   it('should cancel within the allowed window', () => {
     const slotId = insertTestSlot(futureDate(14), '10:00', '11:00');
     const appointment = appointmentService.bookAppointment(user2.id, slotId);
+    appointmentService.approveAppointment(appointment.id);
 
     const result = appointmentService.cancelAppointment(user2.id, appointment.id);
     assert.equal(result.status, 'cancelled');

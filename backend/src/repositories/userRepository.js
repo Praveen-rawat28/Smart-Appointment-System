@@ -10,15 +10,15 @@ class UserRepository {
   }
 
   /**
-   * @param {{ name: string, email: string, passwordHash: string }}
+   * @param {{ name: string, email: string, passwordHash: string, role?: string }}
    * @returns {{ id: number, name: string, email: string, created_at: string }}
    */
-  create({ name, email, passwordHash }) {
+  create({ name, email, passwordHash, role = 'user' }) {
     const stmt = this.db.prepare(`
-      INSERT INTO users (name, email, password_hash)
-      VALUES (?, ?, ?)
+      INSERT INTO users (name, email, password_hash, role)
+      VALUES (?, ?, ?, ?)
     `);
-    const result = stmt.run(name, email, passwordHash);
+    const result = stmt.run(name, email, passwordHash, role);
     return this.findById(result.lastInsertRowid);
   }
 
@@ -27,7 +27,7 @@ class UserRepository {
    */
   findById(id) {
     return this.db.prepare(`
-      SELECT id, name, email, created_at FROM users WHERE id = ?
+      SELECT id, name, email, role, created_at FROM users WHERE id = ?
     `).get(id);
   }
 
@@ -36,8 +36,17 @@ class UserRepository {
    */
   findByEmail(email) {
     return this.db.prepare(`
-      SELECT id, name, email, password_hash, created_at FROM users WHERE email = ?
+      SELECT id, name, email, password_hash, role, created_at FROM users WHERE email = ?
     `).get(email);
+  }
+
+  /**
+   * Get all users (admin function)
+   */
+  findAll() {
+    return this.db.prepare(`
+      SELECT id, name, email, role, created_at FROM users ORDER BY created_at DESC
+    `).all();
   }
 }
 

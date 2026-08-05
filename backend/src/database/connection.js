@@ -41,6 +41,7 @@ function initializeSchema(database) {
       name TEXT NOT NULL,
       email TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -57,10 +58,16 @@ function initializeSchema(database) {
     CREATE TABLE IF NOT EXISTS appointments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
-      slot_id INTEGER NOT NULL UNIQUE,
-      status TEXT NOT NULL DEFAULT 'confirmed' CHECK (status IN ('confirmed', 'cancelled')),
+      slot_id INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'cancelled', 'rejected')),
+      subject TEXT,
+      description TEXT,
       booked_at TEXT NOT NULL DEFAULT (datetime('now')),
       cancelled_at TEXT,
+      rejected_at TEXT,
+      alternative_slot_date TEXT,
+      alternative_slot_start_time TEXT,
+      alternative_slot_end_time TEXT,
       FOREIGN KEY (user_id) REFERENCES users(id),
       FOREIGN KEY (slot_id) REFERENCES appointment_slots(id)
     );
@@ -68,7 +75,12 @@ function initializeSchema(database) {
     CREATE INDEX IF NOT EXISTS idx_slots_date_status ON appointment_slots(slot_date, status);
     CREATE INDEX IF NOT EXISTS idx_appointments_user_status ON appointments(user_id, status);
     CREATE INDEX IF NOT EXISTS idx_appointments_user_date ON appointments(user_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_appointments_confirmed_slot
+      ON appointments(slot_id) WHERE status = 'confirmed';
   `);
+
+  const { runMigrations } = require('./migrations');
+  runMigrations(database);
 }
 
 /**

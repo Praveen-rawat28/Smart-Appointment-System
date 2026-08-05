@@ -5,6 +5,7 @@
 const jwt = require('jsonwebtoken');
 const config = require('../config');
 const { sendError } = require('../utils/apiResponse');
+const userRepository = require('../repositories/userRepository');
 
 /**
  * @param {import('express').Request} req
@@ -29,4 +30,24 @@ function authenticate(req, res, next) {
   }
 }
 
-module.exports = { authenticate };
+/**
+ * Admin role check middleware
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
+ */
+function requireAdmin(req, res, next) {
+  try {
+    const user = userRepository.findById(req.user.userId);
+    
+    if (!user || user.role !== 'admin') {
+      return sendError(res, 'Admin access required', 403);
+    }
+    
+    next();
+  } catch (err) {
+    return sendError(res, 'Error checking user permissions', 500);
+  }
+}
+
+module.exports = { authenticate, requireAdmin };

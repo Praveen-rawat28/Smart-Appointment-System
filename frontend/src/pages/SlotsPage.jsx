@@ -8,6 +8,7 @@ import SlotCard from '../components/SlotCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Alert from '../components/Alert';
 import { useCurrentTime } from '../hooks/useCurrentTime';
+import { isWeekend, getWeekendErrorMessage } from '../utils/timeFormat';
 
 const REFRESH_INTERVAL_MS = 30000;
 
@@ -15,10 +16,12 @@ export default function SlotsPage() {
   const [slots, setSlots] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, totalPages: 1 });
   const [userBookedDates, setUserBookedDates] = useState(new Set());
+  const [userPendingSlotIds, setUserPendingSlotIds] = useState(new Set());
   const [filters, setFilters] = useState({ date: '', status: '' });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [weekendError, setWeekendError] = useState(null);
   const now = useCurrentTime(REFRESH_INTERVAL_MS);
 
   const loadSlots = useCallback(async (page = 1, { silent = false } = {}) => {
@@ -39,10 +42,16 @@ export default function SlotsPage() {
           .filter((appt) => appt.status === 'confirmed')
           .map((appt) => appt.slot_date)
       );
+      const pendingSlotIds = new Set(
+        appointmentsRes.data
+          .filter((appt) => appt.status === 'pending')
+          .map((appt) => appt.slot_id)
+      );
 
       setSlots(slotsRes.data.slots);
       setPagination(slotsRes.data.pagination);
       setUserBookedDates(bookedDates);
+      setUserPendingSlotIds(pendingSlotIds);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -61,13 +70,31 @@ export default function SlotsPage() {
   }, [loadSlots, pagination.page]);
 
   const handleBooked = () => {
-    setSuccess('Appointment booked successfully!');
+    setSuccess('Appointment request submitted successfully! Waiting for admin approval.');
     loadSlots(pagination.page);
   };
 
   const handleFilterSubmit = (e) => {
     e.preventDefault();
+    
+    // Check if selected date is a weekend
+    if (filters.date && isWeekend(filters.date)) {
+      setWeekendError(getWeekendErrorMessage());
+      return;
+    }
+    
+    setWeekendError(null);
     loadSlots(1);
+  };
+
+  const handleDateChange = (e) => {
+    const newDate = e.target.value;
+    setFilters((f) => ({ ...f, date: newDate }));
+    
+    // Clear weekend error when date changes
+    if (weekendError && (!newDate || !isWeekend(newDate))) {
+      setWeekendError(null);
+    }
   };
 
   return (
@@ -79,6 +106,7 @@ export default function SlotsPage() {
 
       <Alert type="success" message={success} onClose={() => setSuccess(null)} />
       <Alert type="error" message={error} onClose={() => setError(null)} />
+      <Alert type="error" message={weekendError} onClose={() => setWeekendError(null)} />
 
       <form className="filters-bar" onSubmit={handleFilterSubmit}>
         <label>
@@ -86,7 +114,7 @@ export default function SlotsPage() {
           <input
             type="date"
             value={filters.date}
-            onChange={(e) => setFilters((f) => ({ ...f, date: e.target.value }))}
+            onChange={handleDateChange}
           />
         </label>
 
@@ -127,6 +155,7 @@ export default function SlotsPage() {
                 slot={slot}
                 onBooked={handleBooked}
                 userBookedDates={userBookedDates}
+                userPendingSlotIds={userPendingSlotIds}
                 now={now}
               />
             ))}

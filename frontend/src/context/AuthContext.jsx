@@ -22,6 +22,7 @@ export function AuthProvider({ children }) {
   const [error, setError] = useState(null);
 
   const isAuthenticated = Boolean(getToken() && user);
+  const isAdmin = user?.role === 'admin';
 
   const persistSession = useCallback((userData, token) => {
     setToken(token);
@@ -66,7 +67,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, loading, error, register, login, logout, setError }}>
+    <AuthContext.Provider value={{ user, isAuthenticated, isAdmin, loading, error, register, login, logout, setError }}>
       {children}
     </AuthContext.Provider>
   );
