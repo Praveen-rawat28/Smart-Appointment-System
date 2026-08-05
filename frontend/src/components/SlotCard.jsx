@@ -1,7 +1,7 @@
 /**
  * Single appointment slot card with book action, optimistic UI, and live status.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { bookSlot } from '../api/appointments';
 import { getSlotDisplayState, SLOT_MESSAGES } from '../utils/slotStatus';
 import BookingModal from './BookingModal';
@@ -38,8 +38,14 @@ export default function SlotCard({ slot, onBooked, userBookedDates, userPendingS
     'day-blocked': 'amber',
   }[displayState];
 
+  useEffect(() => {
+    setError(null);
+    setOptimisticStatus(null);
+  }, [slot.status, userBookedDates, userPendingSlotIds]);
+
   const handleBookClick = () => {
     if (!isBookable) return;
+    setError(null);
     setShowBookingModal(true);
   };
 

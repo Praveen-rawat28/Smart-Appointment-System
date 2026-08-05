@@ -1,15 +1,62 @@
 /**
  * Rejection modal for admin to suggest alternative time slots
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { fetchSlots } from '../api/slots';
 import { formatTime12Hour } from '../utils/timeFormat';
 
 export default function RejectionModal({ appointment, onConfirm, onCancel }) {
   const [suggestAlternative, setSuggestAlternative] = useState(false);
-  const [alternativeDate, setAlternativeDate] = useState('');
-  const [alternativeStartTime, setAlternativeStartTime] = useState('');
-  const [alternativeEndTime, setAlternativeEndTime] = useState('');
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [selectedSlotId, setSelectedSlotId] = useState('');
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [slotError, setSlotError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!suggestAlternative) {
+      setSelectedSlotId('');
+      setSlotError(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadSlotsForDay() {
+      setLoadingSlots(true);
+      setSlotError(null);
+
+      try {
+        const { data } = await fetchSlots({
+          date: appointment.slot_date,
+          status: 'available',
+          limit: 100,
+        });
+        const slots = data.slots.filter((slot) => slot.id !== appointment.slot_id);
+
+        if (!cancelled) {
+          setAvailableSlots(slots);
+          setSelectedSlotId(slots[0]?.id ? String(slots[0].id) : '');
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setAvailableSlots([]);
+          setSelectedSlotId('');
+          setSlotError(err.message);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingSlots(false);
+        }
+      }
+    }
+
+    loadSlotsForDay();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appointment.slot_date, appointment.slot_id, suggestAlternative]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -18,11 +65,13 @@ export default function RejectionModal({ appointment, onConfirm, onCancel }) {
     try {
       let alternativeSlot = null;
       
-      if (suggestAlternative && alternativeDate && alternativeStartTime && alternativeEndTime) {
+      const selectedSlot = availableSlots.find((slot) => String(slot.id) === selectedSlotId);
+
+      if (suggestAlternative && selectedSlot) {
         alternativeSlot = {
-          date: alternativeDate,
-          startTime: alternativeStartTime,
-          endTime: alternativeEndTime,
+          date: selectedSlot.slot_date,
+          startTime: selectedSlot.start_time,
+          endTime: selectedSlot.end_time,
         };
       }
       
@@ -74,43 +123,29 @@ export default function RejectionModal({ appointment, onConfirm, onCancel }) {
             </div>
             
             {suggestAlternative && (
-              <>
-                <div className="form-group">
-                  <label htmlFor="alternativeDate">Alternative Date *</label>
-                  <input
-                    id="alternativeDate"
-                    type="date"
-                    value={alternativeDate}
-                    onChange={(e) => setAlternativeDate(e.target.value)}
-                    required={suggestAlternative}
-                    disabled={submitting}
-                  />
-                </div>
-                
-                <div className="form-group">
-                  <label htmlFor="alternativeStartTime">Start Time *</label>
-                  <input
-                    id="alternativeStartTime"
-                    type="time"
-                    value={alternativeStartTime}
-                    onChange={(e) => setAlternativeStartTime(e.target.value)}
-                    required={suggestAlternative}
-                    disabled={submitting}
-                  />
-                </div>
-                
-                <div className="form-group">
-                  <label htmlFor="alternativeEndTime">End Time *</label>
-                  <input
-                    id="alternativeEndTime"
-                    type="time"
-                    value={alternativeEndTime}
-                    onChange={(e) => setAlternativeEndTime(e.target.value)}
-                    required={suggestAlternative}
-                    disabled={submitting}
-                  />
-                </div>
-              </>
+              <div className="form-group">
+                <label htmlFor="alternativeSlot">Alternative Slot on {appointment.slot_date} *</label>
+                <select
+                  id="alternativeSlot"
+                  value={selectedSlotId}
+                  onChange={(e) => setSelectedSlotId(e.target.value)}
+                  required={suggestAlternative}
+                  disabled={submitting || loadingSlots || availableSlots.length === 0}
+                >
+                  {loadingSlots ? (
+                    <option value="">Loading slots...</option>
+                  ) : availableSlots.length === 0 ? (
+                    <option value="">No available slots for this day</option>
+                  ) : (
+                    availableSlots.map((slot) => (
+                      <option key={slot.id} value={slot.id}>
+                        {formatTime12Hour(slot.start_time)} - {formatTime12Hour(slot.end_time)}
+                      </option>
+                    ))
+                  )}
+                </select>
+                {slotError && <p className="slot-error">{slotError}</p>}
+              </div>
             )}
             
             <div className="modal-actions">
@@ -125,7 +160,7 @@ export default function RejectionModal({ appointment, onConfirm, onCancel }) {
               <button
                 type="submit"
                 className="btn btn-danger"
-                disabled={submitting}
+                disabled={submitting || (suggestAlternative && (loadingSlots || !selectedSlotId))}
               >
                 {submitting ? 'Rejecting...' : 'Reject Appointment'}
               </button>
