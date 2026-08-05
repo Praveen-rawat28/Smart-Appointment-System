@@ -3,16 +3,22 @@
  */
 const express = require('express');
 const cors = require('cors');
+const config = require('./config');
 const authRoutes = require('./routes/authRoutes');
 const slotRoutes = require('./routes/slotRoutes');
 const appointmentRoutes = require('./routes/appointmentRoutes');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const { getDatabase } = require('./database/connection');
+const { ensureUpcomingSlots } = require('./database/slotGenerator');
 
 const app = express();
 
-// Initialize database on startup
+// Initialize database and ensure weekday slots exist for upcoming days
 getDatabase();
+const newSlots = ensureUpcomingSlots(config.slotGenerationDays);
+if (newSlots > 0) {
+  console.log(`Generated ${newSlots} new appointment slots (weekdays 9 AM–5 PM).`);
+}
 
 app.use(cors());
 app.use(express.json());

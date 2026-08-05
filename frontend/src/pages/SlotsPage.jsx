@@ -3,39 +3,62 @@
  */
 import { useEffect, useState, useCallback } from 'react';
 import { fetchSlots } from '../api/slots';
+import { fetchMyAppointments } from '../api/appointments';
 import SlotCard from '../components/SlotCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Alert from '../components/Alert';
+import { useCurrentTime } from '../hooks/useCurrentTime';
+
+const REFRESH_INTERVAL_MS = 30000;
 
 export default function SlotsPage() {
   const [slots, setSlots] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, totalPages: 1 });
-  const [filters, setFilters] = useState({ date: '', status: 'available' });
+  const [userBookedDates, setUserBookedDates] = useState(new Set());
+  const [filters, setFilters] = useState({ date: '', status: '' });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const now = useCurrentTime(REFRESH_INTERVAL_MS);
 
-  const loadSlots = useCallback(async (page = 1) => {
-    setLoading(true);
+  const loadSlots = useCallback(async (page = 1, { silent = false } = {}) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const params = { page, limit: 12 };
       if (filters.date) params.date = filters.date;
       if (filters.status) params.status = filters.status;
 
-      const { data } = await fetchSlots(params);
-      setSlots(data.slots);
-      setPagination(data.pagination);
+      const [slotsRes, appointmentsRes] = await Promise.all([
+        fetchSlots(params),
+        fetchMyAppointments(),
+      ]);
+
+      const bookedDates = new Set(
+        appointmentsRes.data
+          .filter((appt) => appt.status === 'confirmed')
+          .map((appt) => appt.slot_date)
+      );
+
+      setSlots(slotsRes.data.slots);
+      setPagination(slotsRes.data.pagination);
+      setUserBookedDates(bookedDates);
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [filters]);
 
   useEffect(() => {
     loadSlots(1);
   }, [loadSlots]);
+
+  // Refresh slot data periodically so cancellations and bookings stay in sync
+  useEffect(() => {
+    const id = setInterval(() => loadSlots(pagination.page, { silent: true }), REFRESH_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [loadSlots, pagination.page]);
 
   const handleBooked = () => {
     setSuccess('Appointment booked successfully!');
@@ -83,7 +106,7 @@ export default function SlotsPage() {
         <button
           type="button"
           className="btn btn-ghost"
-          onClick={() => setFilters({ date: '', status: 'available' })}
+          onClick={() => setFilters({ date: '', status: '' })}
         >
           Reset
         </button>
@@ -99,7 +122,13 @@ export default function SlotsPage() {
         <>
           <div className="slots-grid">
             {slots.map((slot) => (
-              <SlotCard key={slot.id} slot={slot} onBooked={handleBooked} />
+              <SlotCard
+                key={slot.id}
+                slot={slot}
+                onBooked={handleBooked}
+                userBookedDates={userBookedDates}
+                now={now}
+              />
             ))}
           </div>
 

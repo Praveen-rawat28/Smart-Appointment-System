@@ -14,4 +14,6 @@ module.exports = {
   cancellationWindowHours: parseInt(process.env.CANCELLATION_WINDOW_HOURS, 10) || 24,
   databasePath: process.env.DATABASE_PATH || './data/appointments.db',
   nodeEnv: process.env.NODE_ENV || 'development',
+  // How many calendar days ahead to auto-generate weekday slots (9 AM–5 PM)
+  slotGenerationDays: parseInt(process.env.SLOT_GENERATION_DAYS, 10) || 30,
 };
