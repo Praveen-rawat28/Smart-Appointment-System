@@ -111,6 +111,20 @@ describe('Appointment Booking Logic', () => {
     );
   });
 
+  it('should allow booking another same-day slot after rejection', () => {
+    const date = futureDate(15);
+    const slot1 = insertTestSlot(date, '09:00', '10:00');
+    const slot2 = insertTestSlot(date, '11:00', '12:00');
+
+    const rejected = appointmentService.bookAppointment(user1.id, slot1);
+    appointmentService.rejectAppointment(rejected.id);
+
+    const nextRequest = appointmentService.bookAppointment(user1.id, slot2);
+
+    assert.equal(nextRequest.status, 'pending');
+    assert.equal(nextRequest.slot_id, slot2);
+  });
+
   it('should reject booking past slots', () => {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);

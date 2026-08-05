@@ -77,7 +77,7 @@ class AppointmentRepository {
   }
 
   /**
-   * Get any appointments (including pending) for a user on a specific calendar date
+   * Get active appointments for a user on a specific calendar date.
    * @param {import('better-sqlite3').Database} txDb
    * @param {number} userId
    * @param {string} slotDate - YYYY-MM-DD
@@ -87,7 +87,7 @@ class AppointmentRepository {
       SELECT a.id, s.start_time, s.end_time
       FROM appointments a
       JOIN appointment_slots s ON s.id = a.slot_id
-      WHERE a.user_id = ? AND s.slot_date = ? AND a.status != 'cancelled'
+      WHERE a.user_id = ? AND s.slot_date = ? AND a.status IN ('pending', 'confirmed')
     `).all(userId, slotDate);
   }
 
@@ -216,6 +216,7 @@ class AppointmentRepository {
         a.booked_at,
         u.name AS user_name,
         u.email AS user_email,
+        s.id AS slot_id,
         s.slot_date,
         s.start_time,
         s.end_time
@@ -243,6 +244,7 @@ class AppointmentRepository {
         a.rejected_at,
         u.name AS user_name,
         u.email AS user_email,
+        s.id AS slot_id,
         s.slot_date,
         s.start_time,
         s.end_time
