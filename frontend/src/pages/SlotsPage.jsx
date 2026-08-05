@@ -1,0 +1,131 @@
+/**
+ * Slots listing page — browse and book available appointment slots
+ */
+import { useEffect, useState, useCallback } from 'react';
+import { fetchSlots } from '../api/slots';
+import SlotCard from '../components/SlotCard';
+import LoadingSpinner from '../components/LoadingSpinner';
+import Alert from '../components/Alert';
+
+export default function SlotsPage() {
+  const [slots, setSlots] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, totalPages: 1 });
+  const [filters, setFilters] = useState({ date: '', status: 'available' });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+
+  const loadSlots = useCallback(async (page = 1) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = { page, limit: 12 };
+      if (filters.date) params.date = filters.date;
+      if (filters.status) params.status = filters.status;
+
+      const { data } = await fetchSlots(params);
+      setSlots(data.slots);
+      setPagination(data.pagination);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [filters]);
+
+  useEffect(() => {
+    loadSlots(1);
+  }, [loadSlots]);
+
+  const handleBooked = () => {
+    setSuccess('Appointment booked successfully!');
+    loadSlots(pagination.page);
+  };
+
+  const handleFilterSubmit = (e) => {
+    e.preventDefault();
+    loadSlots(1);
+  };
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <h1>Available Slots</h1>
+        <p>Browse system-generated appointment slots and book one that fits your schedule.</p>
+      </div>
+
+      <Alert type="success" message={success} onClose={() => setSuccess(null)} />
+      <Alert type="error" message={error} onClose={() => setError(null)} />
+
+      <form className="filters-bar" onSubmit={handleFilterSubmit}>
+        <label>
+          Date
+          <input
+            type="date"
+            value={filters.date}
+            onChange={(e) => setFilters((f) => ({ ...f, date: e.target.value }))}
+          />
+        </label>
+
+        <label>
+          Status
+          <select
+            value={filters.status}
+            onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
+          >
+            <option value="">All</option>
+            <option value="available">Available</option>
+            <option value="booked">Booked</option>
+          </select>
+        </label>
+
+        <button type="submit" className="btn btn-secondary">Filter</button>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={() => setFilters({ date: '', status: 'available' })}
+        >
+          Reset
+        </button>
+      </form>
+
+      {loading ? (
+        <LoadingSpinner text="Loading slots..." />
+      ) : slots.length === 0 ? (
+        <div className="empty-state">
+          <p>No slots found for the selected filters.</p>
+        </div>
+      ) : (
+        <>
+          <div className="slots-grid">
+            {slots.map((slot) => (
+              <SlotCard key={slot.id} slot={slot} onBooked={handleBooked} />
+            ))}
+          </div>
+
+          {pagination.totalPages > 1 && (
+            <div className="pagination">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={pagination.page <= 1}
+                onClick={() => loadSlots(pagination.page - 1)}
+              >
+                Previous
+              </button>
+              <span>Page {pagination.page} of {pagination.totalPages}</span>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={pagination.page >= pagination.totalPages}
+                onClick={() => loadSlots(pagination.page + 1)}
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
